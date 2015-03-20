@@ -1,31 +1,27 @@
-import mal_types as types
+import reader
 
-def _pr_str(obj, print_readably=True):
-    _r = print_readably
-    if types._list_Q(obj):
-        return "(" + " ".join(map(lambda e: _pr_str(e,_r), obj)) + ")"
-    elif types._vector_Q(obj):                                    
-        return "[" + " ".join(map(lambda e: _pr_str(e,_r), obj)) + "]"
-    elif types._hash_map_Q(obj):
-        ret = []
-        for k in obj.keys():
-            ret.extend((_pr_str(k), _pr_str(obj[k],_r)))
-        return "{" + " ".join(ret) + "}"
-    elif types._string_Q(obj):
-        if len(obj) > 0 and obj[0] == types.u('\u029e'):
-            return ':' + obj[1:]
-        elif print_readably:
-            return '"' + obj.encode('unicode_escape').decode('latin1').replace('"', '\\"') + '"'
+def pr_list(l):
+    tokens = map(pr_str, l)
+    return ' '.join(tokens)
+
+def pr_str(ast, indent=0):
+    if (isinstance(ast, list)):
+        return '(' + pr_list(ast) + ')'
+    elif (isinstance(ast, reader.GenericList)):
+        (open_token, close_token) = ast.separators
+        return open_token + pr_list(ast.items) + close_token
+    elif (isinstance(ast, reader.Symbol)):
+        return ast.name
+    elif (isinstance(ast, reader.String)):
+        return '"' + ast.val + '"'
+    elif (isinstance(ast, bool)):
+        return "true" if (ast) else "false"
+    elif (isinstance(ast, reader.ReadError)):
+        if (ast.message[1] == None):
+            return '\t'*indent + ast.message[0]
         else:
-            return obj
-    elif types._nil_Q(obj):
+            return '\t'*indent + ast.message[0] + "\n" + pr_str(ast.message[1], indent + 1)
+    elif (ast == None):
         return "nil"
-    elif types._true_Q(obj):
-        return "true"
-    elif types._false_Q(obj):
-        return "false"
-    elif types._atom_Q(obj):
-        return "(atom " + _pr_str(obj.val,_r) + ")"
     else:
-        return obj.__str__()
-
+        return str(ast)
