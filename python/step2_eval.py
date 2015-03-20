@@ -1,62 +1,67 @@
-import sys, traceback
-import mal_readline
-import mal_types as types
-import reader, printer
+import fileinput
+import sys
+import reader
+import printer
 
-# read
-def READ(str):
-    return reader.read_str(str)
+repl_env =  {
+        '+': lambda a,b: a+b,
+        '-': lambda a,b: a-b,
+        '*': lambda a,b: a*b,
+        '/': lambda a,b: int(a/b)
+}
 
-# eval
+class EvalError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+class LookupError(EvalError):
+    def __init__(self, value):
+        super(LookupError, self).__init__(value)
+
 def eval_ast(ast, env):
-    if types._symbol_Q(ast):
-        try:
-            return env[ast]
-        except:
-            raise Exception("'" + ast + "' not found")
-    elif types._list_Q(ast):
-        return types._list(*map(lambda a: EVAL(a, env), ast))
-    elif types._vector_Q(ast):
-        return types._vector(*map(lambda a: EVAL(a, env), ast))
-    elif types._hash_map_Q(ast):
-        keyvals = []
-        for k in ast.keys():
-            keyvals.append(EVAL(k, env))
-            keyvals.append(EVAL(ast[k], env))
-        return types._hash_map(*keyvals)
+    if (isinstance(ast, reader.Symbol)):
+        if (ast.name in env):
+            return env[ast.name]
+        else:
+            raise LookupError("Symbol {0} is not in the environment".format(ast))
+    elif (isinstance(ast, reader.GenericList)):
+        listtype = type(ast)
+        return listtype(map(lambda x: EVAL(x, env), ast.items))
     else:
-        return ast  # primitive value, return unchanged
+        return ast
 
-def EVAL(ast, env):
-        #print("EVAL %s" % printer._pr_str(ast))
-        if not types._list_Q(ast):
-            return eval_ast(ast, env)
+def READ(x):
+    return reader.read_str(x)
 
-        # apply list
-        el = eval_ast(ast, env)
-        f = el[0]
-        return f(*el[1:])
+def EVAL(x, env):
+    if (isinstance(x, reader.List)):
+        evaluated_list = eval_ast(x, env)
+        fun = evaluated_list[0]
+        args = evaluated_list[1:]
+        return fun(*args)
+    else:
+        return eval_ast(x, env)
 
-def PRINT(exp):
-    return printer._pr_str(exp)
+def PRINT(x):
+    return printer.pr_str(x)
 
-# repl
-repl_env = {} 
-def REP(str):
-    return PRINT(EVAL(READ(str), repl_env))
+def rep(x):
+    return PRINT(EVAL(READ(x), repl_env))
 
-repl_env['+'] = lambda a,b: a+b
-repl_env['-'] = lambda a,b: a-b
-repl_env['*'] = lambda a,b: a*b
-repl_env['/'] = lambda a,b: int(a/b)
+def main():
+    while(True):
+        try:
+            line = raw_input("user> ")
+            sys.stdout.write(rep(line))
+            sys.stdout.write("\n")
+        except EOFError:
+            sys.stdout.write("\n")
+            sys.exit(0)
+        except EvalError as err:
+            sys.stderr.write(str(err) + "\n")
+            pass
 
-# repl loop
-while True:
-    try:
-        line = mal_readline.readline("user> ")
-        if line == None: break
-        if line == "": continue
-        print(REP(line))
-    except reader.Blank: continue
-    except Exception as e:
-        print("".join(traceback.format_exception(*sys.exc_info())))
+if __name__ == '__main__':
+    main()

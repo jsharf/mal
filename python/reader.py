@@ -4,6 +4,8 @@ import pdb
 class Symbol:
     def __init__(self, name):
         self.name = name
+    def __str__(self):
+        return repr(self.name)
 
 class String:
     def __init__(self, val):
