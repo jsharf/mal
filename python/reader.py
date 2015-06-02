@@ -30,7 +30,7 @@ class ReadError():
     def __init__(self, msg, err=None):
         self.message = (msg, err) 
 
-class GenericList(object):
+class GenericMap(object):
     separators = (None, None)
     def __init__(self, l):
         self.items = l
@@ -40,15 +40,15 @@ class GenericList(object):
         self.items[key] = val
         return self.items[key]
 
-class Vector(GenericList):
+class Vector(GenericMap):
     separators = ('[', ']')
     def __init__(self, l):
         super(Vector, self).__init__(l)
-class Hash(GenericList):
+class Hash(GenericMap):
     separators = ('{', '}')
     def __init__(self, l):
         super(Hash, self).__init__(l)
-class List(GenericList):
+class List(GenericMap):
     separators = ('(', ')')
     def __init__(self, l):
         super(List, self).__init__(l)

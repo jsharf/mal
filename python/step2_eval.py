@@ -26,7 +26,7 @@ def eval_ast(ast, env):
             return env[ast.name]
         else:
             raise LookupError("Symbol {0} is not in the environment".format(ast))
-    elif (isinstance(ast, reader.GenericList)):
+    elif (isinstance(ast, reader.GenericMap)):
         listtype = type(ast)
         return listtype(map(lambda x: EVAL(x, env), ast.items))
     else:

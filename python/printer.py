@@ -7,7 +7,7 @@ def pr_list(l):
 def pr_str(ast, indent=0):
     if (isinstance(ast, list)):
         return '(' + pr_list(ast) + ')'
-    elif (isinstance(ast, reader.GenericList)):
+    elif (isinstance(ast, reader.GenericMap)):
         (open_token, close_token) = ast.separators
         return open_token + pr_list(ast.items) + close_token
     elif (isinstance(ast, reader.Symbol)):

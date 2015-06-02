@@ -1,75 +1,103 @@
-import sys, traceback
-import mal_readline
-import mal_types as types
-import reader, printer
-from env import Env
+import fileinput
+import sys
+import reader
+import printer
+import env
+import pdb
+from optparse import OptionParser
 
-# read
-def READ(str):
-    return reader.read_str(str)
+verbosity = False
 
-# eval
-def eval_ast(ast, env):
-    if types._symbol_Q(ast):
-        return env.get(ast)
-    elif types._list_Q(ast):
-        return types._list(*map(lambda a: EVAL(a, env), ast))
-    elif types._vector_Q(ast):
-        return types._vector(*map(lambda a: EVAL(a, env), ast))
-    elif types._hash_map_Q(ast):
-        keyvals = []
-        for k in ast.keys():
-            keyvals.append(EVAL(k, env))
-            keyvals.append(EVAL(ast[k], env))
-        return types._hash_map(*keyvals)
-    else:
-        return ast  # primitive value, return unchanged
+repl_env = env.Environment()
+repl_env.set('+', lambda a,b: a+b)
+repl_env.set('-', lambda a,b: a-b)
+repl_env.set('*', lambda a,b: a*b)
+repl_env.set('/', lambda a,b: int(a/b))
 
-def EVAL(ast, env):
-        #print("EVAL %s" % printer._pr_str(ast))
-        if not types._list_Q(ast):
-            return eval_ast(ast, env)
+def verbosePrint(x):
+    global verbosity
+    if (verbosity):
+        print(x)
 
-        # apply list
-        if len(ast) == 0: return ast
-        a0 = ast[0]
+class EvalError(Exception):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
-        if "def!" == a0:
-            a1, a2 = ast[1], ast[2]
-            res = EVAL(a2, env)
-            return env.set(a1, res)
-        elif "let*" == a0:
-            a1, a2 = ast[1], ast[2]
-            let_env = Env(env)
-            for i in range(0, len(a1), 2):
-                let_env.set(a1[i], EVAL(a1[i+1], let_env))
-            return EVAL(a2, let_env)
+class LookupError(EvalError):
+    def __init__(self, value):
+        super(LookupError, self).__init__(value)
+
+def eval_ast(ast, e):
+    if (isinstance(ast, reader.Symbol)):
+        value = e.get(ast.name)
+        if (value != None):
+            return value
         else:
-            el = eval_ast(ast, env)
-            f = el[0]
-            return f(*el[1:])
+            raise LookupError("Symbol {0} is not in the environment".format(ast))
+    elif (isinstance(ast, reader.GenericMap)):
+        listtype = type(ast)
+        return listtype(map(lambda x: EVAL(x, e), ast.items))
+    else:
+        return ast
 
-# print
-def PRINT(exp):
-    return printer._pr_str(exp)
+def READ(x):
+    return reader.read_str(x)
 
-# repl
-repl_env = Env()
-def REP(str):
-    return PRINT(EVAL(READ(str), repl_env))
+def EVAL(x, e):
+    if (isinstance(x, reader.List)):
+        head = x[0]
+        if (head.name == 'def!'):
+            value = EVAL(x[2], e)
+            repl_env.set(x[1].name, value)
+            verbosePrint("{0} : {1}".format(x[1], repl_env.get(x[1].name)))
+            return value
+        elif (head.name == 'let*'):
+            if (len(x.items) != 3):
+                raise EvalError("let* statement may only have 3 arguments. (let* (bindings-list) (body))")
+            newenv = env.Environment(repl_env)
+            for i in range(0, len(x[1].items), 2):
+                newenv.set(x[1][i].name, EVAL(x[1][i+1], newenv))
+            verbosePrint("Let statement env: {0}".format(newenv))
+            return EVAL(x[2], newenv)
+        else:
+            evaluated_list = eval_ast(x, e)
+            fun = evaluated_list[0]
+            args = evaluated_list[1:]
+            return fun(*args)
+    else:
+        return eval_ast(x, e)
 
-repl_env.set(types._symbol('+'), lambda a,b: a+b)
-repl_env.set(types._symbol('-'), lambda a,b: a-b)
-repl_env.set(types._symbol('*'), lambda a,b: a*b)
-repl_env.set(types._symbol('/'), lambda a,b: int(a/b))
+def PRINT(x):
+    return printer.pr_str(x)
 
-# repl loop
-while True:
-    try:
-        line = mal_readline.readline("user> ")
-        if line == None: break
-        if line == "": continue
-        print(REP(line))
-    except reader.Blank: continue
-    except Exception as e:
-        print("".join(traceback.format_exception(*sys.exc_info())))
+def rep(x):
+    return PRINT(EVAL(READ(x), repl_env))
+
+def main():
+    global verbosity
+    parser = OptionParser()
+    parser.add_option("-v", "--verbose",
+            action="store_true", dest="verbose",
+            default=False,
+            help="print extra log messages to stdout")
+    (options, args) = parser.parse_args()
+    verbosity = options.verbose
+    while(True):
+        try:
+            line = raw_input("user> ")
+            sys.stdout.write(rep(line))
+            sys.stdout.write("\n")
+        except EOFError:
+            sys.stdout.write("\n")
+            sys.exit(0)
+        except EvalError as err:
+            sys.stderr.write(str(err) + "\n")
+            pass
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            pass
+
+if __name__ == '__main__':
+    main()
